@@ -83,6 +83,10 @@ https://github.com/mariaplaza/PEC3_DatosLongitudinales
 
 Reproducir el análisis estadístico completo que se lleva a cabo en la selección de GB13 para el el conjunto ARMD para el dataset personal. Desde la presentación y descripción del dataset objeto de estudio hasta el modelo lineal mixto que se proponga, cada paso debe ser oportunamente motivado y razonado, con la interpretación final de los resultados.
 
+Los modelos mixtos son usados cuando los datos tienen alg´un tipo de estructura jer´arquica o de agrupaci´on como los dise˜nos de medidas repetidas,las series temporales, los dise˜nos anidados o por bloques aleatorizados. Los modelos mixtos permiten tener coeﬁcientes ﬁjos (aquellos cuyos niveles son de inter´es para el experimentador) y aleatorios (aquellos cuyos niveles son s´olo una realizaci´on de todos los posibles niveles procedentes de una poblaci´on) y varios t´erminos de error. Pueden ser una herramienta muy ´util, pero son potencialmente dif´ıciles de comprender y aplicar.
+
+Para ello se emplea espewcialmente el paquete `nlme()` escrito inicialmente por Jose Pinheiro (Bell Laboratories) y Douglas Bates (University of Wisconsin). 
+
 # Datos
 ## Selección de la muestra estudio
 
@@ -152,10 +156,10 @@ xlab = "Time (in weeks)",
 ylab = "Visual acuity",
 grid = "h")
 
-
 library(ggplot2)
 library(nlmeU) 
 ggplot(my.armd0, aes(x=time, y=visual, group=subject, color=treat.f)) + geom_line()+geom_point()+xlab("Tiempo (semanas)")+ylab("Agudeza Visual")
+
 ```
 
 ### Patterns of Missing Data
@@ -318,137 +322,193 @@ diag(varx2)
 
 La matriz de correlación estimada sugiere una correlación moderada de las mediciones. También observamos que la correlación disminuye claramente con el intervalo de tiempo.
 
-# Modelos
+# Modelos lineales mixtos (LMM)
 
-Vamos a aplicar un modelo a nuestros datos que permite tener en cuenta la correlación entre las mediciones,utilizando modelos lineales de efectos mixtos (LMM). En este enfoque, la estructura jerárquica de los datos se aborda directamente, con efectos aleatorios que describen la contribución de la variabilidad en diferentes niveles de la jerarquía a la variabilidad total de las observaciones.
+Vamos a aplicar un modelo a nuestros datos que permita tener en cuenta la correlación entre las mediciones, utilizando modelos lineales de efectos mixtos (LMM). Un modelo simple asume que la relaci´on entre las variables es la misma en todos los sujetos. Sin embargo, normalmente dicho modelo no es el mismo en todos ellos, por ello en este enfoque se aplican efectos aleatorios que describen la contribución de la variabilidad en diferentes niveles de las observaciones de forma que se predice la relación entre las variables en un sentido general a la población, sin limitarnos a los datos concretos del estudio.
 
-Ajustamos varios LMM a la seleccion de datos de ARMD de nuestro estudio. Para ello vamos a emplear principalmente la función `lme()` del paquete `nlme`, algunos ajustados con la función `lmer()` del paquete `lme4.0`.
+Ajustamos varios LMM a la selección de datos de ARMD de nuestro estudio. Para ello vamos a emplear principalmente la función `lme()` del paquete `nlme` y por 'ultimo algunos ajustados con la función `lmer()` del paquete `lme4.0`.
 
 ## A Model with Random Intercepts and Homogeneous Residual Variance
 
-Vamos a realizar un modelo simple que contiene intercepciones aleatorias específicas del sujeto y errores residuales homoscedásticos.
+Para elegir la estructura de los efectos aleatorios es necesario incluir todos los posibles terminos fijos y sus interacciones en el modelo. Luego se comparan distintos modelos que varian en sus efectos aleatorios pero que mantienen la misma estructura fija por medio de REML. Para ello primero creamos un modelo simple que contiene intercepciones aleatorias específicas del sujeto y errores residuales homoscedásticos. 
 
-La fórmula `lm2.form` define la parte fija del modelo, incluida una interacción entre *line* y el *tratamiento*. El factor *treat.f* se parametriza con "Activo" como nivel de referencia. El argumento `random = ~ 1 | subject` especifica intercepciones aleatorias específicas del sujeto. Por defecto, `lme()` asume errores residuales independientes con una varianza constante $\sigma^2$. Además, se usa la estimación REML predeterminada. Para cambiarlo a la estimación de ML, debemos agregar el argumento method = "ML" a la llamada a la función.
+En este modelo, asumimos que sólo hay una línea de regresión con una única constante y una única pendiente. La constante α y la pendiente β son los parámetros ﬁjos del modelo. Además, hay una constante aleatoria, $a_j$, que añade cierta cantidad de variación a la constante del modelo general en cada una de los sujetos. Se asume que esta constante aleatoria sigue una distribución normal de media 0 y varianza  $σ^2_a$ . Por lo tanto,los parámetros estimados en el modelo son cuatro, α, β, la varianza residual $σ^2$ , y la varianza de la constante  $σ&2_a$. De esta forma tenemos un modelo equivalente al modelo lineal, pero en dónde sólo es necesario estimar cuatro parámetros y en vez del mismo número que el número de sujetos estudiados. Lo que estimamos en este modelo es la varianza de esta distribución. Vamos a ajustar el modelo lineal mixto correspondiente con la función  lme() tal y como se realiza en la página 331 del capítulo 16 del libro @galecki2013linear pero para nuestro conjunto de datos:
 
-Imprimimos la tabla de efectos fijos estimada utilizando el Función `printCoefmat()`. El argumento `has.Pvalue = TRUE` especifica que la última columna de la tabla contiene valores p que deben imprimirse.
-
-**Model M16.1 fitted using the function lme()**
-
-Ajustamos el modelo con las variabes que nos dan un menor p-value y con la variable factor treat.f:
+La fórmula `lmm1` define la parte fija del modelo, incluida una interacción entre el tiempo y el tipo de tratamiento (time:treat.f). El factor *treat.f* se parametriza con "Activo" como nivel de referencia. El argumento `random = ~ 1 | subject` especifica intercepciones aleatorias específicas del sujeto. Por defecto, `lme()` asume errores residuales independientes con una varianza constante $\sigma^2$. Podemos ver la tabla de efectos fijos estimada utilizando el Función `printCoefmat()`. El argumento `has.Pvalue = TRUE` especifica que la última columna de la tabla contiene valores p. El modelo por defecto se crea según Estimación por Máxima Verosimilitud Restringida (REML)
 
 ```{r}
 library(nlme)
-lm2.form <- # (16.1)
+lmm1.form <- # formula general
 formula(visual ~ visual0 + time + treat.f + treat.f:time)
-(fm16.1 <- # M16.1
-lme(lm2.form,
-random = ~  1|subject, data = my.armd, na.action=na.omit, method = "ML"))
+(lmm1 <- # se aplica el modelo, 
+lme(lmm1.form,
+random = ~  1|subject, data = my.armd)) # al grupo de datos reducido my.armd
 
-printCoefmat(summary(fm16.1)$tTable, # Print fixed-effects, etc.
+summary(lmm1)
+
+printCoefmat(summary(lmm1)$tTable, # estimated fixed-effects
 has.Pvalue = TRUE, P.values = TRUE) # ... with p-values
 ```
 
-Los resultados anteriores muestran que la desviación estándar de las intersecciones aleatorias se estima que es igual a 0.46, mientras que la desviación estándar residual $\sigma$ es igual a 0.17.
+Los resultados anteriores muestran que la varianza residual es $σ^2$= 8.2187 y la varianza de la constante $σ^2_a$ = 8.9159. Para la parte de los efectos ﬁjos del modelo,  α (constante)  + β·variables, la constante se estima en  α = 5.1239 y la pendiente en β de visual0 = 0.8782. Ambos parámetros son signiﬁcativamente distintos de 0. La correlación entre la constante y la pendiente de cada variable es pequeña.
 
-Ahora extraemos información sobre la agrupación de datos. Al usar la función `getGroupsFormula()` obtenemos la expresión de condicionamiento utilizada en la especificación del argumento aleatorio. Indica un único nivel de agrupación, definido por los niveles del sujeto. Al aplicar la funcion `getGroups()` al objeto de ajuste del modelo, extraemos el factor de agrupación y lo almacenamos en el objeto `grpF`. Con la ayuda de la función `str()`, mostramos la estructura del objeto. La impresión implica que el factor de agrupación tiene 118 (sujetos).
+Para cada sujeto, la constante aumenta o disminuye por un valor aleatorio. Este valor aleatorio sigue una distribución normal con media esperada 0 y varianza $σ^2_a$ = 8.9159. La varianza residual, es decir, el error que podemos añadir a cada una de nuestras predicciones, viene dada por $σ^2$= 8.2187.
+
+Los valores p, que corresponden a las estadísticas de la prueba t para los coeficientes de efectos fijos (fixed-effects coefficients), los vemos también en la salida anterior, con valores significativos para *Visual0*, *time* y la interacción, sin embargo no es significativo para tipo de tratamiento (placebo y activo).
+
+En el siguiente script, con la función `getGroupsFormula()` obtenemos información sobre la jerarquía de datos implicada por el modelo ajustado. Indica un único nivel de agrupación, definido por los niveles del sujeto. Al aplicar la funcion `getGroups()` al modelo, extraemos el factor de agrupación y lo almacenamos en el objeto `grpF`. Como vemos el factor de agrupación tiene 144 niveles (sujetos). Por ejemplo, del primer sujeto tenemos dos observaciones, para el segundo y el tercero cuatro observaciones, etc. Además obtenemos el mínimo de observaciones, que sería 1 y el máximo de observaciones es 4, como ya sabemos.
 
 ```{r}
-getGroupsFormula(fm16.1) # Grouping formula
+getGroupsFormula(lmm1) # Grouping formula
 
-str(grpF <- getGroups(fm16.1)) # Grouping factor
+str(grpF <- getGroups(lmm1)) # Grouping factor
 grpF[1:17]
 
 levels(grpF)[1:5]
 range(xtabs(~grpF))
 ```
 
-Para obtener más información sobre la estructura estimada de varianza-covarianza para efectos aleatorios (D) y errores residuales (Ri) del modelo, utilizamos las funciones `getVarCov()` y `VarCorr()`. El argumento `individual = "2"`, utilizado en función `getVarCov()`, solicita la matriz de varianza-covarianza de efectos aleatorios para el segundo individuo, es decir, sujeto == 2, en el conjunto de datos analizado. De hecho, en nuestro caso, el número de sujeto no es importante, ya que se supone que la estructura de varianza-covarianza de los efectos aleatorios es la misma para todos los individuos. Obtenemos las estimaciones de los elementos de la matriz D utilizando la función `VarCorr()`.
+Para obtener más información sobre la estructura estimada de varianza-covarianza para efectos aleatorios(D) y errores residuales(Ri) del modelo, utilizamos las funciones `getVarCov()` y `VarCorr()`. El argumento `individual = "2"`, utilizado en función `getVarCov()`, solicita la matriz de varianza-covarianza de efectos aleatorios para el segundo individuo, es decir, sujeto == 2, en el conjunto de datos analizado. Sin embargo, en nuestro caso, el número de sujeto no es importante, ya que se supone que la estructura de varianza-covarianza de los efectos aleatorios es la misma para todos los individuos.
 
 ```{r}
 ##The D-matrix estimate
-getVarCov(fm16.1, individual = "2")
+getVarCov(lmm1, individual = "2") # para obtener el valor de la varianza únicamente
 
-VarCorr(fm16.1)
+VarCorr(lmm1)
 
 ## The Ri-matrix estimate
-getVarCov(fm16.1,
-type = "conditional",
+getVarCov(lmm1,
+type = "conditional", # matriz estimada de varianza-covarianza Ri de los errores aleatorios residuales
 individual = "2")
 ```
 
-Obtenemos la medicion de agudeza visual posteriora la aleatorización, por lo que se forma una matriz de un solo valor. La varianza marginal se estima mediante la suma de la varianza residual estimada s 2 = 0.091131 y la varianza del azar = 0.64804. El último componente de la varianza se convierte en la covarianza.
+Como vemos este sujeto (número 2) tiene las cuatro mediciones de agudeza visual posteriores a la aleatorización, por lo que nos proporciona una matriz de 4 × 4. Debido a que el modelo creado supone errores residuales independientes con la misma varianza en todos los tiempos de medición, se muestra una matriz diagonal $Ri = \sigma^2 I_4 = 67.547 × I_4$
 
-La matriz de correlación marginal resultante se obtiene aplicando la función `cov2cor()` al primer componente de la lista de objetos fm16.1cov, que contiene la matriz de varianza-covarianza marginal estimada. La matriz de correlación marginal estimada implica un coeficiente de correlación positivo constante de 0.52 para cualquiera de las dos mediciones de agudeza visual obtenidas para el mismo paciente en diferentes puntos de tiempo.
+En el siguiente script calculamos la matriz de varianza-covarianza marginal estimada, aplicando la función `getVarCov()` con el argumento `type = "marginal"`. El resultado, para `individual = "2"`, se almacena en el objeto `lmm1.cov`. La varianza marginal se estima mediante la suma de la varianza residual estimada $\sigmas^2 = 67.547$ y la varianza de las intersecciones aleatorias d = 79.493.
+
+La matriz de correlación marginal resultante se obtiene aplicando la función `cov2cor()` al primer componente de la lista de objetos `lmm1.cov`, que contiene la matriz de varianza-covarianza marginal estimada. La matriz de correlación marginal estimada implica un coeficiente de correlación positivo constante de 0.540624 para cualquiera de las dos mediciones de agudeza visual obtenidas para el mismo paciente en diferentes puntos de tiempo.
 
 ```{r}
-# The estimated marginal variance-covariance matrix and the corresponding correlation matrix for model M16.1. The model-fit object fm16.1 was created in Panel R16.1
-(fm16.1cov <-
-getVarCov(fm16.1,
+# The estimated marginal variance-covariance matrix and the corresponding correlation matrix for model 1.
+(lmm1.cov <-
+getVarCov(lmm1,
 type = "marginal", # Vi
 individual = "2"))
 
-(cov2cor(fm16.1cov[[1]])) # Corr(Vi)
+(cov2cor(lmm1.cov[[1]])) # Corr(Vi)
+
+anova(lmm1)
 ```
 
-Con el modelo anterior creamos este nuevo modelo: **Modelo 2**
+la comparación de modelos con las pruebas de razón de probabilidad es una mejor manera de probar si un parámetro es significativo. Es decir, si agregar el parámetro a su modelo mejora significativamente el ajuste del modelo, entonces ese parámetro debe incluirse en el modelo.
+
+## A Model with Random Intercepts and the varPower(). Residual Variance-Function
+
+Con el modelo anterior creamos este nuevo modelo `lmm2` utilizando el argumento `weights = varPower (form = ~ time)`. Para especificar el nuevo modelo, utilizamos la misma parte de efectos fijos que en el modelo`lmm1`, pero modificamos la estructura de varianza-covarianza de los errores aleatorios residuales con el uso de la función de varianza `varPower()`. La matriz diagonal Ri proporcionada por `getVarCov` ahora posee elementos desiguales definidos por la función `varPower()`. Debido a que la varianza cambia con el tiempo, los coeficientes de correlación marginal entre las observaciones realizadas en diferentes momentos ya no son iguales.
+
+Veamos los parámetros del modelo:
 
 ```{r}
-# Model M16.2 fitted using the function lme(). The model-fit object fm16.1 was created in Panel R16.1
-(fm16.2 <- 
-update(fm16.1,
+# Model 2 fitted using the function lme().
+(lmm2 <- 
+update(lmm1,
 weights = varPower(form = ~ time), 
 data = my.armd))
+
+printCoefmat(summary(lmm2)$tTable, # Print fixed-effects
+has.Pvalue = TRUE, P.values = TRUE) # ... with p-values
 ```
 
+Los resultados anteriores indican que el parámetro de escala $\sigma$ se estima que es igual a 4.0999. El coeficiente de potencia $\delta$ de la función de varianza `varPower()` se estima que es igual a 0.2513. La estimación de la desviación estándar de las intersecciones aleatorias es igual a 8.1079.
 
+Creamos ahora las estimaciones de las matrices de varianza-covarianza asociadas con modelo lmm2: D, $R_i$, y $V_i%$.
 
 ```{r}
-# The estimated D, Ri, and Vi matrices for model M16.2. The model-fit object fm16.2 was created in Panel R16.5
-VarCorr(fm16.2) #d
+# The estimated D, Ri, and Vi matrices for model 2
+VarCorr(lmm2) #d
 
-getVarCov(fm16.2, #Ri
+getVarCov(lmm2, #Ri
 type = "conditional",
 individual = "2")
+```
 
-(fm16.2cov <- #Vi
-getVarCov(fm16.2,
+La varianza estimada de las intersecciones aleatorias es igual a 65.737, menor que el valor de 79.4934 obtenida para el modelo 1 (lmm1), lo que es normal porque, al permitir errores aleatorios residuales heterocedásticos, una gran parte de la variabilidad total se explica por las variaciones residuales. De la matriz estimada de varianza-covarianza de los errores residuales $R_i$ se obtiene que el primer elemento diagonal de la matriz $R_i$ es igual a $s^2·4^{2\delta} = 4.0999 · 4^{2·0.2513} = 33.741$.
+
+La matriz de varianza-covarianza marginal estimada $V_i$ se muestra en la salida siguiente. La matriz de correlación marginal estimada correspondiente indica una correlación decreciente entre las mediciones de agudeza visual realizadas en puntos temporales más distantes.
+
+```{r}
+(lmm2.cov <- #Vi
+getVarCov(lmm2,
 type = "marginal",
 individual = "2"))
 
-cov2cor(fm16.2cov[[1]]) # Corr(Vi)
+cov2cor(lmm2.cov[[1]]) # Corr(Vi)
 ```
 
-Crear una tabla con los resultados de los tres modelos: ARMD Trial: REML-based estimatesa for linear mixed-effects modelsb with random intercepts and time slopes
+Para resumir presento los resultados de ambos modelos en la siguiente tabla:
+
+| modelo | Parametro | lmm1 | lmm2 |
+| ------- | ------- | ------- | ------- |
+| Log-REML value |   | -2004.824 | -1993.846 |
+| Fixed effects |  |  |  |
+|  Intercept | $\beta_0$   | 5.123917(3.19) | 3.9328(2.89) |
+|  Visual acuity at t=0 | $\beta_1$   | 0.878177(0.05) | 0.9067(0.04) |
+|  Time (in weeks) | $\beta_2$  | -0.150210(0.03) | -0.1637(0.03) |
+|  Trt(Actv vs. Plcb) | $\beta_3$   | -0.631877(1.88) | -1.0739(1.65) |
+|  Tm × Treat(Actv) | $\beta_4$    | -0.120690(0.04) | -0.1054(0.04)
+| reStruct(subject) |  |  |  |
+|  SD(bi0) | $\sqrt{d}$  | 8.9159 | 8.107852 |
+| Variance function | |  |  |
+|  Power (TIMEd) |  $\delta$ |  | 0.2513  |
+| Scale | $\sigma$ | 8.2187 |  4.099941  |
 
 
 ## Diagnosis plots
 
-ARMD Trial: Residual plots for model M16.2. The model-fit object fm16.2 was created in Panel R16.5
+En este punto graficamos la bondad del ajuste de ambos modelos
+
+El gráfico que desarrolla la función `plot()` muestra los residuales condicionales de *Pearson* versus los valores ajustados. Como tal, la gráfica no es muy informativa, porque agrupa todos los residuos juntos, a pesar de que los residuos obtenidos del mismo individuo están potencialmente correlacionados. Sin embargo, puede servir para detectar, por ejemplo, valores atípicos.
+
+En la figura 4, se observan residuos por encima y por debajo de la linea central del diagrama de diagrama de dispersión. Una gráfica modificada de los residuos para cada punto de tiempo y grupo de tratamiento podría ser más útil.
 
 ```{r}
-library(lattice)
 # 1. Default residual plot of conditional Pearson residuals
-plot(fm16.2) # Fig. 16.1
-# 2. Plots (and boxplots) of Pearson residuals per time and treatment
-plot(fm16.2, # Figure not shown
-resid(., type = "pearson") ~ time | treat.f,
-id = 0.05)
-bwplot(resid(fm16.2, type = "p") ~ time.f | treat.f, # Fig. 16.2
-panel = lattice.getOption("panel.xyplot"), # User-defined panel (not shown)
-data = my.armd)
-# 3. Normal Q-Q plots of Pearson residuals and predicted random effects
-qqnorm(fm16.2, ~resid(.) | time.f) # Fig. 16.3
-qqnorm(fm16.2, ~ranef(.)) # Fig. 16.4
+plot(lmm2) 
 ```
 
-*Residual plots for model M16.2. The model-fit object fm16.2 was created in Panel R16.5*
+Para ello se realiza el gráfico de la figura 5, donde a través del argumento `type = "pearson"` en la función `resid()` y el término `~ time | treat` se obtiene el siguiente gráfico por grupo de tratamiento a lo largo del tiempo en paneles separados. Al aplicar el argumento `id = 0.05` se etiquetan los residuos más grandes, en valor absoluto al percentil `97.5` de la distribución normal estándar por el número de la observación correspondiente a nuestros datos `my.armd`.
+
+```{r}
+# 2. Plots (and boxplots) of Pearson residuals per time and treatment
+plot(lmm2, # Figure not shown
+resid(., type = "pearson") ~ time | treat.f,
+id = 0.05)
+```
+
+Otra opción nos la proporciona el paquete `lattice` con la función `bwplot()`:
+```{r}
+library(lattice)
+bw1 <- # Draft plot
+bwplot(resid(lmm2, type = "p") ~ time.f | treat.f,
+data = my.armd0, wend = 0.05, las = 1, id = 0.05, panel = function(...) {
+  panel.bwplot(..., pch = "|")
+  panel.xyplot(..., jitter.x = TRUE)})
+xlims <- c("Base", "4\nwks", "12\nwks", "24\nwks", "52\nwks")
+update(bw1, xlim = xlims)
+```
+
+Estas figuras nos permiten una evaluación de la distribución de los residuos condicionales de Pearson para cada momento del tiempo y grupo de tratamiento. A pesar de la estandarización, la variabilidad de los residuos parece variar.
+
+El gráfico 5 también revela una serie de valores atípicos, es decir, residuos mayores, en valor absoluto, que el percentil 97.5 de la distribución normal estándar. Como vemos los valores atípicos están presentes en todos los grupos de tratamiento y en todos los puntos de tiempo. 
+
+Con el siguiente script se enumeran los sujetos para los que se marcaron los residuos periféricos en la figura anterior. Los datos incluidos en `outliers.idx` contiene las observaciones para las cuales el valor de la variable `idx` es igual a 1. 
 
 ```{r}
 id <- 0.05 # Argument for qnorm()
 outliers.idx <-
 within(my.armd,
 {
-resid.p <- resid(fm16.2, type = "pearson") # Pearson resids.
+resid.p <- resid(lmm2, type = "pearson") # Pearson resids.
 idx <- abs(resid.p) > -qnorm(id/2) # Indicator vector
 })
 outliers <- subset(outliers.idx, idx) # Data with outliers
@@ -457,258 +517,311 @@ nrow(outliers) # Number of outliers
 outliers$subject # IDs of outliers
 ```
 
-*Predicted visual acuity values for model M16.2. The model-fit object fm16.2 was created in Panel R16.5*
+Hay 22 de esas observaciones y obtenemos el número de los sujetos correspondientes. Para varios sujetos, hay más de un residuo periférico, porque hay más de una medición de agudeza visual posible por sujeto.
+
+La figura 7 muestra el gráfico Q-Q de los residuos condicionales de Pearson por tiempo. Los patrones muestran algunas desviaciones de una tendencia lineal. También podemos ver el gráfico `Q-Q normal` de los efectos aleatorios, ligeramente curvilíneo, lo que podría indicar la no normalidad de los efectos aleatorios.
+
+```{r}
+# 3. Normal Q-Q plots of Pearson residuals and predicted random effects
+qqnorm(lmm2, ~resid(.) | time.f) # Fig. 7
+qqnorm(lmm2, ~ranef(.)) 
+```
+
+La figura 8 muestra los valores observados y pronosticados de las mediciones de agudeza visual para pacientes seleccionados. La gráfica contie cuatro columnas que contienen los valores de la covariable primaria, los grupos, los valores pronosticados u observados, y el indicador del tipo del valor de la tercera columna.
 
 ```{r fig.width=7, fig.height=6}
-aug.Pred <- # augPred for M16.2
-augPred(fm16.2,
+aug.Pred <- 
+augPred(lmm2,
 primary = ~time, # Primary covariate
 level = 0:1, # Marginal(0) and subj.-spec.(1)
 length.out = 2)
-plot(aug.Pred, layout = c(4, 4, 1), # Fig. 16.5
+plot(aug.Pred, layout = c(4, 4, 1), # Fig. 8
 key = list(lines = list(lty = c(1,2)),
 text = list(c("Marginal", "Subject-specific")),
 columns = 2))
 ```
 
-## Models with Random Intercepts and Slopes and the varPower(·) Residual Variance-Function
+Establecemos `length.out = 2`, es decir, los valores pronosticados se obtienen en dos valores de tiempo, en el mínimo (4 semanas) y el máximo (52 semanas). 
+Cada celda corresponde a un solo sujeto; así, se trazan las predicciones para los primeros 16 sujetos. Las medias de población predichas, que se muestran en la gráfica, disminuyen linealmente en el tiempo. Lo que indica que las medias de la población se desplazan para pacientes individuales mediante intercepciones aleatorias específicas del sujeto.
+
+Para algunos pacientes, los perfiles individuales predichos obtenidos se desvían fuertemente de los observados. Por ejemplo, para los sujetos 4 y 15, los patrones individuales predichos sugieren una disminución de la agudeza visual con el tiempo, mientras que los valores observados en realidad aumentan con el tiempo. Una posible forma de mejorar las predicciones individuales es permitir no solo las intercepciones aleatorias específicas del paciente, sino también las pendientes aleatorias específicas del paciente, como haremos en el siguiente modelo.
+
+## Models with Random Intercepts and Slopes and the varPower() Residual Variance-Function
 ### Model with a General Matrix D
 
-La matriz D estimada y los intervalos de confianza para los parámetros qD para el modelo M16.3. El objeto de ajuste del modelo fm16.2 se hizo reaccionar en el Panel R16.5
+Ajustamos el modelo siguiente `lmm3` usando la sintaxis `random = ~ 1 + time | suject` para especificar la estructura de efectos aleatorios, implicando que, para cada nivel de la variable de agrupación de sujetos, se debe considerar una intersección aleatoria y una pendiente aleatoria para el tiempo.
+También se presentan los intervaloa de confianza al 95%. Los resultados muestran un bajo valor estimado del coeficiente de correlación para los efectos aleatorios $b_{0i}$ y $b_{2i}$, igual a 0.07424. El intervalo de confianza para el coeficiente de correlación sugiere que los dos efectos aleatorios pueden no estar correlacionados.
 
 ```{r}
-fm16.3 <- # M16.3 ← M16.2
-update(fm16.2,
+lmm3 <- # modelo 3
+update(lmm2,
 random = ~1 + time | subject,
 data = my.armd)
-getVarCov(fm16.3, individual = "2") # D: (16.16)
+getVarCov(lmm3, individual = "2") # D
 
-intervals(fm16.3, which = "var-cov") # 95% CI for qD, d: (16.8), s
+intervals(lmm3, which = "var-cov") # 95% CI for qD, d, s
 ```
 
 ### 16.4.2 Model with a Diagonal Matrix D
 
-Confidence intervals for the parameters of model M16.4. The model-fit object fm16.3 was created in Panel R16.10
+Creamos el modelo 4 `lmm4` especificando `random = pdDiag (~ time)` de forma que implicamos una forma diagonal de la matriz de varianza-covarianza D de las intersecciones y pendientes aleatorias. Seg'un los IC del 95% para todos los parámetros del modelo 4, se sugiere que la estructura media podría simplificarse eliminando la interacción `time: treat.f`.
 
 ```{r}
-fm16.4 <- # M16.4 ← M16.3
-update(fm16.3,
+lmm4 <- # modelo 4
+update(lmm3,
 random = list(subject = pdDiag(~time)), # Diagonal D
 data = my.armd)
-intervals(fm16.4) # 95% CI for b, qD, d, s
+intervals(lmm4) # 95% CI for b, qD, d, s
 ```
 
-Testing a null hypothesis about the qD parameters for model M16.4. The model-fit object fm16.3 was created in Panel R16.10
+Aplicamos la función `anova()` a los modelo 3 (alternativo) y 4 (nulo). Ya que ambos modelos tienen la misma estructura media, el uso de la prueba LR basada en REML está justificado.
 
 ```{r}
-anova(fm16.4, fm16.3) # H0: d12=0 (M16.4 ⊂ M16.3)
+anova(lmm4, lmm3) # H0: d12=0 (modelo 4 ⊂ modelo 3)
 ```
 
-Stripplots (and box-and-whiskers plots) of the conditional Pearson residuals for each timepoint and treatment group for model:
+El resultado no es estadísticamente significativo al nivel de significancia del 5%. Indica que, al suponer una estructura diagonal más simple de la matriz D, no empeoramos el ajuste del modelo. Lo mismo nos indican los valores AIC: el valor de 3949.827 para el modelo 3 es ligeramente mayor que el valor de 3948.027 para el modelo 4, lo que indica un ajuste ligeramente mejor del último modelo.
 
+Como los valores de la diagonal de la matriz D y $\sigma$ son positivos, nos indica que la función aumenta con el tiempo, lo que está concuerda con la observación del análisis exploratorio.
+
+La figura 9 presenta los residuos condicionales de Pearson para el modelo 4. En comparación con la gráfica similar para el modelo 2 muestra menos residuos con un valor absoluto mayor que el percentil 97.5 de la distribución normal estándar.
 ```{r}
 library(lattice)
-bwplot(resid(fm16.4, type = "p") ~ time.f | treat.f, 
+bwplot(resid(lmm4, type = "p") ~ time.f | treat.f, 
 data = my.armd, panel = function(...) {
   panel.bwplot(..., pch = "|")
   panel.xyplot(..., jitter.x = TRUE)})
 ```
 
-Normal Q-Q plots of Pearson residuals and predicted random effects
+La figura 10 muestra la gráfica Q-Q normal de los residuos condicionales de Pearson por tiempo para el modelo 4 comparable a la gráfica correspondiente para el modelo 2.
 
 ```{r}
-# 3. Normal Q-Q plots of Pearson residuals and predicted random effects
-qqnorm(fm16.4, ~resid(.) | time.f) # Fig. 16.3
-qqnorm(fm16.4, ~ranef(.)) # Fig. 16.4
+# Normal Q-Q plots of Pearson residuals
+qqnorm(lmm4, ~resid(.) | time.f) 
 ```
 
-Observed and predicted values of visual acuity for selected patients for model M16.4
+La figura 11 presenta las gráficas normal Q-Q de los efectos aleatorios predichos para el modelo 4. El primer gráfico muestra las intersecciones aleatorias, similar al modelo 2 y el segundo las pendientes aleatorias. Este último está ligeramente más cerca de una línea recta que el primero.
+
+```{r}
+# 3. Normal Q-Q plots of predicted random effects
+qqnorm(lmm4, ~resid(.) | time.f)
+qqnorm(lmm4, ~ranef(.)) 
+```
+
+Por último la figura 12 presenta los valores marginales y específicos del sujeto predichos para el modelo 4. En el modelo 2 la misma gráfica mostró una pendiente decreciente de los perfiles individuales, la misma para todos los sujetos y en algunos, los perfiles individuales predichos se desviaron fuertemente de los observados. En este modelo en cambio, los perfiles individuales predichos siguen más de cerca los valores observados y capturan, por ejemplo, las tendencias crecientes en el tiempo, lo que indica que **el modelo 4 ofrece un mejor ajuste a los datos que el modelo 2**.
 
 ```{r fig.width=7, fig.height=6}
-aug.Pred <- # augPred for M16.2
-augPred(fm16.4,
+aug.Pred <- # augPred aplicada al modelo 4
+augPred(lmm4,
 primary = ~time, # Primary covariate
 level = 0:1, # Marginal(0) and subj.-spec.(1)
 length.out = 2)
-plot(aug.Pred, layout = c(4, 4, 1), # Fig. 16.5
+plot(aug.Pred, layout = c(4, 4, 1), 
 key = list(lines = list(lty = c(1,2)),
 text = list(c("Marginal", "Subject-specific")),
 columns = 2))
 ```
 
-## Model with a Diagonal Matrix D and a Constant Treatment Effect
+### Model with a Diagonal Matrix D and a Constant Treatment Effect
 
-Fixed-effects estimates, their approximate standard errors, and 95% confidence intervals for the variance-covariance parameters of model M16.5. The model-fit object fm16.4 was created in Panel
+Como hemos visto en el apartado anterior, la estructura media del modelo 4 podría simplificarse eliminando la interacción `treat.f:time`.
 
+Para ajustar el nuevo modelo `lmm5` ajustamos la formula del modelo linal (LM) y eliminamos la interacci'on, pero mantenemos el resto de variables.
 ```{r}
-lm3.form <- formula(visual ~ visual0 + time + treat.f) # (12.9)
-fm16.5 <- # M16.5 ← M16.4
-update(fm16.4,
-lm3.form, data = my.armd)
-summary(fm16.5)$tTable #b, se(b), t-test
+lmm5.form <- formula(visual ~ visual0 + time + treat.f) # formula
+lmm5 <- # modelo 5 a partir del 4
+update(lmm4,
+lmm5.form, data = my.armd)
 
-intervals(fm16.5, which = "var-cov") # 95% CI for qD, d, s
+summary(lmm5)$tTable #b, se(b), t-test
+
+# Estimaciones de efectos fijos, sus errores estándar aproximados e intervalos de confianza del 95% para los parámetros de varianza-covarianza del modelo 5.
+
+intervals(lmm5, which = "var-cov") # 95% CI for qD, d, s
 ```
 
-The estimates of matrices D, Ri, and Vi for model M16.5. The model-fit object fm16.5 was created in Panel R16.13
+Como se puede observar en la salida de codigo anterior, el resultado de t-test para el factor `treat.f` es estadísticamente significativo al nivel de significancia del 5%, lo que sugiere un efecto promedio negativo independiente del tiempo del tratamiento *activo*. Los IC son muy similares al modelo 4.
 
+En el script siguiente se muestra la matriz de varianza-covarianza marginal estimada $V_i$ que indica una tendencia creciente de variaciones de las mediciones de agudeza visual a lo largo del tiempo, mientras que la matriz de correlación correspondiente sugiere una correlación decreciente entre las mediciones obtenidas en puntos de tiempo más distantes.
 ```{r}
-VarCorr(fm16.5) # D: (16.16),
+# Las estimaciones de las matrices D, Ri y Vi para el modelo 5.
+VarCorr(lmm5) # D
 
-getVarCov(fm16.5, # Ri: (16.8)
+getVarCov(lmm5, # Ri
 type = "conditional", individual = "2")
 
-(fm16.5cov <- # Vi: (16.9)
-getVarCov(fm16.5,
+(lmm5.cov <- # Vi
+getVarCov(lmm5,
 type = "marginal",
 individual = "2"))
 
-cov2cor(fm16.5cov[[1]]) # Corr(Vi)
+cov2cor(lmm5.cov[[1]]) # Corr(Vi)
 ```
+
+INcluir tb una tabla con los resultados:
 
 ## An Alternative Residual Variance Function: varIdent(·)
 
-INcluir tb una tabla con los resultados:
-REML-based estimatesa for linear mixed-effects models with random intercepts and slopes
-
-Fitting model M16.6 and testing its variance function using a REML-based likelihood-ratio test. The model-fit object fm16.3 was created in Panel R16.10
+Los modelos presentados hasta ahora se especificaron con el uso de la función de varianza `varPower()`. Sin embargo, esta puede ser una función demasiado limitada, porque supone que las variaciones de las mediciones de agudeza visual cambian como una función de potencia del tiempo de medición. Sin embargo, es posible que, una función de varianza más general, no restringida, permita obtener un mejor ajuste que la función anterior. Para ello creamos el modelo 6 y lo comparamos con el modelo 3.
 
 ```{r}
-# (a) Fitting of model M16.6
-(fm16.6 <- # M16.6 ← M16.3
-update(fm16.3, weights = varIdent(form = ~1 | time.f)))
+# Ajustar el modelo 6 y la función de varianza utilizando una prueba de razón de probabilidad basada en REML.
+(lmm6 <- 
+update(lmm3, weights = varIdent(form = ~1 | time.f)))
+
+anova(lmm3, lmm6) # funcion varPower() frente a la funcion varIdent()
 ```
 
+Realizamos ahora el test anova teniendo en cuenta último modelo (nulo) está anidado en el primero. El resultado de la prueba es estadísticamente significativa al nivel de significación del 5% y sugiere que el uso de la función de varianza `varIdent()` más general para definir la matriz Ri, proporciona un mejor ajuste que el uso de `varPower()`. Sin embargo, si miramos a los par'amteros estimados, el valor del par'ametro de la semana 52 es extremadamente pequeño (0.0001436149) y difiere sustancialmente de los valores estimados de las semanas 4, 12 y 24. Esto es sorprendente, porque todos los análisis anteriores indicaron que la varianza de la última medición de agudeza visual (en la semana 52) fue la mayor. Adem'as, si vemos los intervalos de confianza para los parámetros de varianza y covarianza, nos da el siguiente mensaje de error, lo que indica problemas con la estimación de la matriz de varianza-covarianza para las estimaciones de los parámetros:
+
+```{r message=TRUE, warning=TRUE}
+intervals(lmm6, which = "var-cov")
+```
+
+Finalmente, el problema con la convergencia del algoritmo de estimación para el modelo 6 también se refleja en el gráfico QQ normal de los residuos condicionales de Pearson, donde se observa que los residuos para la semana 52 son todos iguales a 0. Esto significa que la estimación REML, con la función `lme()` no es un valor óptimo en el modelo 6.
 
 ```{r}
-
-anova(fm16.3, fm16.6) # varPower (M16.3) ⊂ varIdent (M16.6)
-
-# A signal of the problems with the estimation of model M16.6 can be also obtained by, e.g., attempting to compute confidence intervals for the variancecovariance parameters. In particular, issuing the command results in an error message indicating problems with estimating the variancecovariance matrix for the estimates of the parameters.
-
-# intervals(fm16.6, which = "var-cov")
-
-# Finally, the problem with convergence of the estimation algorithm for model M16.6 is also clearly reflected in the normal Q-Q plot of the conditional Pearson residuals, shown in Fig. 16.10 and obtained by issuing the command.
-
-qqnorm(fm16.6, ~resid(.)|time.f)
-
-# The normal Q-Q plot of the conditional Pearson residuals for model M16.6. Panel for 52 weeks indicates the problem with model fit. This means that the REML estimate, reported by the lme() function in Panel R16.14a, is not an optimum value.
-
+# El panel durante la semana 52 indica el problema con el ajuste del modelo.
+qqnorm(lmm6, ~resid(.)|time.f)
 ```
 
-```{r}
-# densityplot(fm16.3)
-```
+Puede deberse a que el modelo 6 tiene siete parámetros y dado que el número de parámetros es cercano al número de ecuaciones, puede producirse colinealidad entre los parámetros, con consecuencias en forma de problemas de convergencia del algoritmo de estimación. Por otro lado, el modelo 3 tiene menos parámetros que incluye una función de potencia de tiempo, que no es lineal. Por lo tanto, en este caso, es menos probable que aparezca la colinealidad. de esta forma, el modelo 3 impone una restricción adicional en la forma de la estructura marginal de varianza-covarianza, que parece derivar en una solución óptima.
 
 ## 16.6 Testing Hypotheses About Random Effects
 
-The values of Akaike’s Information Criterion for models M16.1–M16.5
+Calculamos los valores de AIC de los modelos 1 al 5. Se puede ver que, por ejemplo, el AIC para el modelo 2, es decir, 4003.693, es mayor que el valor de 3949.827 para el modelo 3, lo que indica un mejor ajuste del último modelo. Además, como vimos en la figura 12, los valores predichos obtenidos para el modelo 3 están más de cerca los observados, en comparación con el modelo 2. El valor más bajo de AIC se obtiene para el modelo 4, lo que sugiere que el modelo proporciona el mejor ajuste general a los datos.
+
+Hay que notar que ambos modelos, el 4 y el 5, son identicos en cuanto a sus efectos fijos y solo varian en sus efectos aleatorios. Para comparar los dos modelos con los mismos efectos fijos pero con distintos efectos aleatorios, usamos un test de verosimilitud. 
+
+El AIC sugiere que el modelo 4 es mas apropiado, pero el BIC sugiere que el modelo 5 es mejor. El p-valor del test de verosimilitud indica que el modelo mas complejo (5) es el mas parsimonioso y por tanto elegiriamos este.
 
 ```{r}
-AIC(fm16.1, fm16.2, # M16.1, M16.2
-fm16.3, fm16.4) # M16.3, M16.4
+# valores de Akaike’s Information Criterion para los modelos 1 al 5
+AIC(lmm1, lmm2, 
+lmm3, lmm4) 
 
-fm16.4ml <- update(fm16.4, method = "ML")
-fm16.5ml <- update(fm16.5, method = "ML")
-anova(fm16.4ml, fm16.5ml) # M16.4 ⊂ M16.5
+lmm4.ml <- update(lmm4, method = "ML")
+lmm5.ml <- update(lmm5, method = "ML")
+anova(lmm4.ml, lmm5.ml) # modelo 4 y 5
 ```
 
 ### 16.6.1 Test for Random Intercepts
 
-The REML-based likelihood-ratio test for no random intercepts in model M16.1. The formula-object lm2.form and the model-fit object fm16.1 were created in Panel R16.1
+Usando el modelo 1, que contiene intercepción aleatoria, vamos a comprobar si se necesitan intercepciones aleatorias específicas del sujeto a través de una prueba anova comparando el modelo 1 y un modelo nulo basado en el modelo 1, que asume errores residuales homoscedásticos y ningún efecto aleatorio. Básicamente estamos probando la hipótesis nula de que la varianza de la intersección aleatoria es cero, que está en el límite del espacio de parámetros.
+
+Para obtener el valor p correcto, dividimos el valor $\chi^2$ based p-value extraído del objeto `anova.res` entre 2. El p-value obtenido indica que el resultado de la prueba es estadísticamente significativo. Por ello, rechazamos la hipótesis nula de que la varianza de la distribución de las intersecciones aleatorias es igual a 0.
+
+Empleamos tambien una alternativa usando el paquete `RLRsim`. El resultado muestra que el p-value de la prueba LR basada en REML, estimado a partir de 10,000 simulaciones, es estadísticamente significativo. 
 
 ```{r}
-# (a) Using 0.5c20 +0.5c21 as the null distribution
+# 0.5 chi2_0 + 0.5chi_1 como la distribución nula
 
-vis.gls1a <- # Null model
-gls(lm2.form, data = my.armd)
-(anova.res <- anova(vis.gls1a, fm16.1)) # Null vs. M16.1
+gls.1 <- # Null model
+gls(lmm1.form, data = my.armd)
+(anova.res <- anova(gls.1, lmm1)) # Null vs. modelo 1
 
 (anova.res[["p-value"]][2])/2 # 0.5c20 + 0.5c21
 
-# (b) Using the function exactRLRT() to simulate the null distribution
+# empleamos la función exactRLRT() para simular la distribución nula
 library(RLRsim)
-exactRLRT(fm16.1) # M16.1 (alternative)
+exactRLRT(lmm1) # alternativa
 ```
 
 ### 16.6.2 Test for Random Slopes
 
-The REML-based likelihood-ratio test for random slopes for model M16.7. The model-fit objects fm16.1 and fm16.4 were created in Panels R16.1 and R16.10, respectively.
+consideramos ahora un modelo con intercepciones aleatorias y pendientes no correlacionadas específicas del sujeto y errores residuales homoscedasticos independientes y emplearemos la prueba LR basada en REML para probar si se necesitan pendientes aleatorias en el modelo 7 creado en el apartado anterior. La prueba implica la comparación de dos modelos, modelo 1 (nulo) y modelo 7 (alternativa).
+
+Hay tres formas de realizar esta prueba:
 
 ```{r}
-# (a) Fitting model M16.7
-fm16.7 <- # M16.7 ← M16.4
-update(fm16.4, weights = NULL, # Constant resid. variance
+# Modelo 7
+lmm7 <- 
+update(lmm4, weights = NULL, # Constant resid. variance
 data = my.armd)
-# (b) Using 0.5c21+0.5c22 as the null distribution
-(an.res <- # M16.1 (null)
-anova(fm16.1, fm16.7)) # M16.7 (alternative)
+
+# 0.5 chi2_0 + 0.5chi_1 como la distribución nula
+(an.res <- # modelo 1 = null
+stats::anova(lmm1, lmm7)) # modelo 7 = alternative
 
 (RLRT <- an.res[["L.Ratio"]][2]) # LR-test statistic
 
 0.5*pchisq(RLRT, 1, lower.tail = FALSE) + 0.5*pchisq(RLRT, 2, lower.tail = FALSE)
 
-# (c) Using the function exactRLRT() to simulate the null distribution
+# empleamos la función exactRLRT() para simular la distribución nula
 mAux <- # Auxiliary model with ...
-update(fm16.1, random = ~0 + time|subject, # ... random slopes only.
+update(lmm1, random = ~0 + time|subject, # ... random slopes only.
 data = my.armd)
 exactRLRT(m = mAux, # Auxiliary model
-m0 = fm16.1, # M16.1 (null)
-mA = fm16.7) # M16.7 (alternative)
+m0 = lmm1, # null
+mA = lmm7) # alternative
 
-# (d) Using the function simulate() to simulate the null distribution
-vis.lme2.sim <- # M16.1 (null)
-simulate(fm16.1, m2 = fm16.7, nsim = 10000) # M16.7 (alternative)
-plot(vis.lme2.sim, df = c(1, 2), # Fig. 16.12
+# empleamos la función simulate() para simular la distribución nula
+lmm1.sim <- # M16.1 (null)
+simulate(lmm1, m2 = lmm7, nsim = 10000) # alternative
+plot(vis.lme2.sim, df = c(1, 2), 
 abline = c(0,1, lty=2))
 ```
 
+El valor p ajustado indica que el resultado de la prueba es estadísticamente significativa. Por lo tanto, la prueba nos permite rechazar la hipótesis nula de que la varianza de las pendientes aleatorias es igual a 0. Empleamos ademas la función `exactaRLRT()`, que solo permite efectos aleatorios independientes. El valor p simulado es esencialmente igual a 0, lo que indica que la hipótesis nula puede ser rechazada
+
+Finalmente, la función `simulate()` se aplica para obtener una gráfica de valores p empíricos y nominales de la prueba LR.
+
 ## 16.7 Analysis Using the Function lmer()
+
+Reajustamos los modelos 1 y 7, utilizando la función `lmer()` del paquete `lme4.0`. 
+
 ### 16.7.1 Basic Results
+
+Los valores de las estadísticas de la prueba t para los efectos fijos se proporcionan sin ningún valor de p. Ademas se muestra la matriz de varianza-covarianza del valor fijo.
+Ajustamos el modelo 1:
 
 ```{r}
 # (a) Model fit and results
-require(lme4.0)
-fm16.1mer <- # M16.1
+library(lme4)
+lmm1.lmer <- 
 lmer(visual ~ visual0 + time * treat.f + (1|subject),
 data = my.armd)
-print(fm16.1mer, corr = FALSE) # % Corr(b) not printed
+print(lmm1.lmer, corr = FALSE) # % Corr(b)
 
 # (b) Correlation matrix for b
-vcovb <- vcov(fm16.1mer) # % Var(b)
+vcovb <- vcov(lmm1.lmer) # % Var(b)
 corb <- cov2cor(vcovb) # % Corr( b)
-nms <- abbreviate(names(fixef(fm16.1mer)), 5)
+nms <- abbreviate(names(fixef(lmm1.lmer)), 5)
 rownames(corb) <- nms
 corb
 ```
 
+Ajustamos el modelo 7:
 
 ```{r}
 library(lme4)
-# (a) Fitting the model and extracting basic information
-fm16.2mer <- # M16.7
+# Fitting the model and extracting basic information
+lmm7.lmer <- 
 lmer(visual ~ visual0 + time + treat.f + treat.f:time +
 (1|subject) + (0 + time|subject),
 data = my.armd)
-summ <- summary(fm16.2mer)
+summ <- summary(lmm7.lmer)
 coef(summ) # t-Table
 
-unlist(VarCorr(fm16.2mer)) # D. Short printout
+unlist(VarCorr(lmm7.lmer)) # D. Short printout
 
-sigma(fm16.2mer) #s
+stats::sigma(lmm7.lmer) #s
 
 # (b) Likelihood-ratio test for the treat.f:time interaction
-fm16.2aux <- # Model M16.7 with ...
-update(fm16.2mer, . ~ . - treat.f:time) #... interaction omitted
-anova(fm16.2aux, fm16.2mer)
+lmm7lmer.aux <- # Model M16.7 with ...
+update(lmm7.lmer, . ~ . - treat.f:time) #... interaction omitted
+anova(lmm7lmer.aux, lmm7.lmer)
 ```
 
-The REML-based likelihood-ratio test for no random slopes in model M16.7. Model-fit objects fm16.1mer and fm16.2mer were created in Panels R16.19 and R16.26, respectively
+Hemos contruido una serie de modelos con varias estructuras aleatorias: modelo 1 con intersecciones aleatorias y varianzas residuales homoscedásticas; modelo 2 con intersecciones aleatorias y variaciones residuales descritas por una función de variación em el tiempo; modelo 3 con intersecciones aleatorias correlacionadas y pendientes aleatorias y las variaciones residuales del tiempo y modelo 4 con intercepciones aleatorias independientes y pendientes aleatorias y las variaciones residuales de la potencia del tiempo. El último modelo dio un ajuste satisfactorio a los datos y nos permitió simplificar la estructura media al adoptar un efecto de tratamiento constante, como se refleja en el modelo 5.
+
+A la vista de los reultados obtenidos, hubiese sido apropiado comenzar a partir del modelo 3, pero con el tiempo incluido en la estructura media como factor, y tratar de simplificar el modelo eliminando los efectos aleatorios del tiempo. 
 
 ```{r}
-# (a) Using 0.5c21+0.5c22 as the null distribution
-RML0 <- logLik(fm16.1mer) # log-REML, M16.1 (null)
-RMLa <- logLik(fm16.2mer) # log-REML, M16.7 (alternative)
+# La prueba de razón de probabilidad basada en REML para pendientes no aleatorias en el modelo 7
+# Using 0.5c21+0.5c22 as the null distribution
+RML0 <- logLik(lmm1.lmer) # log-REML, (null)
+RMLa <- logLik(lmm7.lmer) # log-REML, (alternative)
 (RLRTstat <- -2 * as.numeric(RML0 - RMLa))
 
 .5 * pchisq(RLRTstat, 1, lower.tail = FALSE) + .5 * pchisq(RLRTstat, 2, lower.tail = FALSE) # p-value
@@ -720,8 +833,6 @@ visual0 + time + treat.f + treat.f:time +
 (0 + time| subject), # ... random slopes only.
 data = my.armd)
 exactRLRT(m = mAux, # Auxiliary model
-m0= fm16.1mer, # M16.1 (null)
-mA= fm16.2mer) # M16.7 (alternative)
+m0= lmm1.lmer, # (null)
+mA= lmm7.lmer) # (alternative)
 ```
-
-Tabla con todos los resultados!!!
